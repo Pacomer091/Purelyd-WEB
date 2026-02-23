@@ -695,15 +695,21 @@ function setupEventListeners() {
     playlistForm.onsubmit = async (e) => {
         e.preventDefault();
         const name = document.getElementById('playlist-name').value;
-        await PlaylistDB.addPlaylist({
-            name,
-            username: currentUser.username,
-            songIds: []
-        });
-        playlistModal.style.display = 'none';
-        playlistForm.reset();
-        await loadPlaylists();
-        renderPlaylists();
+        try {
+            await PlaylistDB.addPlaylist({
+                name,
+                username: currentUser.username,
+                song_ids: []
+            });
+            playlistModal.style.display = 'none';
+            playlistForm.reset();
+            await loadPlaylists();
+            renderPlaylists();
+            alert('Playlist "' + name + '" creada!');
+        } catch (err) {
+            console.error('Error creating playlist:', err);
+            alert('Error al crear la playlist: ' + err.message);
+        }
     };
 
     menuAddPlaylist.onclick = () => {

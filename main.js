@@ -447,16 +447,58 @@ function updateAuthUI() {
 function renderSongs() {
     const mainHeading = document.querySelector('.content-area h1');
     if (mainHeading) {
-        if (currentPlaylistId === 'favorites') mainHeading.textContent = 'My Favorites';
+        if (currentPlaylistId === 'favorites') mainHeading.textContent = 'Mis Favoritos';
         else if (currentPlaylistId === 'uploads') mainHeading.textContent = 'Subido por mí';
         else if (currentPlaylistId) {
             const p = playlists.find(p => p.id === currentPlaylistId);
             mainHeading.textContent = p ? p.name : 'Playlist';
         } else {
-            mainHeading.textContent = 'All Songs (Home)';
+            mainHeading.textContent = searchTerm ? 'Resultados' : 'Purelyd';
         }
     }
 
+    // HOME VIEW: Show action cards instead of all songs
+    if (!currentPlaylistId && !searchTerm) {
+        songGrid.innerHTML = `
+            <div class="song-card home-action-card" id="home-random" style="cursor:pointer;">
+                <div class="song-cover" style="background: linear-gradient(135deg, #1DB954, #1ed760); display:flex; align-items:center; justify-content:center; font-size:3rem;">🎲</div>
+                <div class="song-info">
+                    <div class="song-title" style="font-size:1rem; font-weight:700;">Canción Aleatoria</div>
+                    <div class="song-artist">Sorpréndete</div>
+                </div>
+            </div>
+            <div class="song-card home-action-card" id="home-playlists" style="cursor:pointer;">
+                <div class="song-cover" style="background: linear-gradient(135deg, #ff0033, #ff6b6b); display:flex; align-items:center; justify-content:center; font-size:3rem;">📁</div>
+                <div class="song-info">
+                    <div class="song-title" style="font-size:1rem; font-weight:700;">Mis Playlists</div>
+                    <div class="song-artist">${playlists.length} playlists</div>
+                </div>
+            </div>
+            <div class="song-card home-action-card" id="home-favorites" style="cursor:pointer;">
+                <div class="song-cover" style="background: linear-gradient(135deg, #e91e63, #f06292); display:flex; align-items:center; justify-content:center; font-size:3rem;">❤️</div>
+                <div class="song-info">
+                    <div class="song-title" style="font-size:1rem; font-weight:700;">Favoritos</div>
+                    <div class="song-artist">Tus canciones favoritas</div>
+                </div>
+            </div>
+        `;
+        document.getElementById('home-random').onclick = () => {
+            if (songs.length === 0) return;
+            const randomIndex = Math.floor(Math.random() * songs.length);
+            playSong(randomIndex);
+        };
+        document.getElementById('home-playlists').onclick = () => {
+            if (mobNavPlaylists) mobNavPlaylists.click();
+        };
+        document.getElementById('home-favorites').onclick = () => {
+            if (navFavorites) navFavorites.click();
+        };
+        toggleSelectBtn.style.display = 'none';
+        if (isSelectMode) exitSelectMode();
+        return;
+    }
+
+    // SEARCH / PLAYLIST VIEW: Show songs
     const favIds = currentUser ? (currentUser.favorites || []) : [];
 
     const filteredSongs = songs.filter(song => {

@@ -1107,12 +1107,14 @@ async function playSong(index) {
     audioElement.pause();
     if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
 
-    // Update UI
-    document.querySelector('.player-song-info .song-name').textContent = song.title;
-    document.querySelector('.player-song-info .artist-name').textContent = song.artist;
-    const cover = song.cover || getThumbnail(song);
-    document.querySelector('.player-cover').style.backgroundImage = `url(${cover})`;
-    document.querySelector('.player-cover').style.backgroundSize = 'cover';
+    // Update UI (Conditional)
+    if (!needsGestureKickstart) {
+        document.querySelector('.player-song-info .song-name').textContent = song.title;
+        document.querySelector('.player-song-info .artist-name').textContent = song.artist;
+        const cover = song.cover || getThumbnail(song);
+        document.querySelector('.player-cover').style.backgroundImage = `url(${cover})`;
+        document.querySelector('.player-cover').style.backgroundSize = 'cover';
+    }
 
     const videoId = getYTId(song.url);
     if (song.type === 'youtube' || videoId) {

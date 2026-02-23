@@ -33,8 +33,8 @@ let isSelectMode = false;
 let selectedSongIds = [];
 let userWantsToPlay = false; // Persistent state for background bypass
 let needsGestureKickstart = true; // Workaround for Browser Autoplay restrictions
-let pendingKickstartIndex = null; // Song to play after valid gesture
 const SILENT_TRACK_FILE = "silent_keepalive.mp3";
+const BRIDGE_YOUTUBE_ID = "KgUo_fR73yY";
 
 // DOM Elements
 const songGrid = document.getElementById('song-grid');

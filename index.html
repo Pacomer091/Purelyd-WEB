@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Purelyd Music - YouTube Music Clone</title>
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
@@ -45,12 +45,12 @@
             <nav class="nav-links">
                 <a href="#" class="active" id="nav-home"><i class="icon-home"></i> Home</a>
                 <a href="#" id="nav-favorites"><i class="icon-heart"></i> Favorites</a>
-                <a href="#" id="nav-uploads"><i class="icon-library"></i> Subido por m├¡</a>
+                <a href="#" id="nav-uploads"><i class="icon-library"></i> Subido por mí</a>
             </nav>
             <div class="playlists-section">
                 <button id="add-song-btn" class="btn-new-playlist" style="margin-bottom: 12px;">+ Add Song</button>
                 <button id="bulk-import-btn" class="btn-new-playlist"
-                    style="margin-bottom: 12px; background: rgba(52, 152, 219, 0.1); border-color: rgba(52, 152, 219, 0.3);">Ô¼ç
+                    style="margin-bottom: 12px; background: rgba(52, 152, 219, 0.1); border-color: rgba(52, 152, 219, 0.3);">⬇
                     Bulk Import</button>
                 <button id="new-playlist-btn" class="btn-new-playlist" style="background: rgba(255,255,255,0.05);">+ New
                     Playlist</button>
@@ -65,7 +65,7 @@
             <header class="top-bar">
                 <div class="search-container">
                     <button id="menu-toggle" class="mobile-menu-btn"
-                        style="display: none; background: none; border: none; font-size: 24px; color: white; cursor: pointer; margin-right: 15px;">Ôÿ░</button>
+                        style="display: none; background: none; border: none; font-size: 24px; color: white; cursor: pointer; margin-right: 15px;">☰</button>
                     <input type="text" id="search-input" placeholder="Search songs, artists, albums">
                 </div>
                 <div class="user-profile" id="user-profile-btn">
@@ -93,9 +93,9 @@
             <div id="multi-action-bar" class="multi-action-bar">
                 <div class="selected-count">0 seleccionados</div>
                 <div class="bar-actions">
-                    <button id="bulk-fav-btn">Favorito ÔØñ´©Å</button>
-                    <button id="bulk-playlist-btn">A├▒adir a Playlist Ô×ò</button>
-                    <button id="bulk-delete-btn" class="delete">Eliminar ­ƒùæ´©Å</button>
+                    <button id="bulk-fav-btn">Favorito ❤️</button>
+                    <button id="bulk-playlist-btn">Añadir a Playlist ➕</button>
+                    <button id="bulk-delete-btn" class="delete">Eliminar 🗑️</button>
                     <button id="cancel-select-btn" class="cancel">Cancelar</button>
                 </div>
             </div>
@@ -103,14 +103,14 @@
             <!-- Mobile Bottom Nav -->
             <nav class="mobile-bottom-nav">
                 <div class="nav-item" id="mobile-nav-home">
-                    <span class="nav-icon">­ƒÅá</span>
+                    <span class="nav-icon">🏠</span>
                     <span class="nav-label">Inicio</span>
                 </div>
                 <div class="nav-item nav-add" id="mobile-nav-add">
                     <span class="nav-icon">+</span>
                 </div>
                 <div class="nav-item" id="mobile-nav-library">
-                    <span class="nav-icon">­ƒôÜ</span>
+                    <span class="nav-icon">📚</span>
                     <span class="nav-label">Biblioteca</span>
                 </div>
             </nav>
@@ -119,9 +119,9 @@
             <div id="mobile-add-overlay" class="nav-sheet">
                 <div class="sheet-content">
                     <div class="sheet-header">Agregar</div>
-                    <div class="sheet-item" id="mob-add-song">Ô×ò A├▒adir Canci├│n</div>
-                    <div class="sheet-item" id="mob-bulk-import">Ô¼ç Importaci├│n Masiva</div>
-                    <div class="sheet-item" id="mob-new-playlist">­ƒåò Nueva Playlist</div>
+                    <div class="sheet-item" id="mob-add-song">➕ Añadir Canción</div>
+                    <div class="sheet-item" id="mob-bulk-import">⬇ Importación Masiva</div>
+                    <div class="sheet-item" id="mob-new-playlist">🆕 Nueva Playlist</div>
                     <button class="sheet-close">Cerrar</button>
                 </div>
             </div>
@@ -129,9 +129,9 @@
             <div id="mobile-library-overlay" class="nav-sheet">
                 <div class="sheet-content">
                     <div class="sheet-header">Mi Biblioteca</div>
-                    <div class="sheet-item" id="mob-nav-uploads">­ƒôñ Subido por m├¡</div>
-                    <div class="sheet-item" id="mob-nav-favorites">ÔØñ´©Å Mis Favoritos</div>
-                    <div class="sheet-item" id="mob-nav-playlists">­ƒôü Mis Playlists</div>
+                    <div class="sheet-item" id="mob-nav-uploads">📤 Subido por mí</div>
+                    <div class="sheet-item" id="mob-nav-favorites">❤️ Mis Favoritos</div>
+                    <div class="sheet-item" id="mob-nav-playlists">📁 Mis Playlists</div>
                     <button class="sheet-close">Cerrar</button>
                 </div>
             </div>
@@ -163,7 +163,7 @@
             </div>
 
             <div class="player-extra">
-                <button id="volume-btn">­ƒöè</button>
+                <button id="volume-btn">🔊</button>
                 <input type="range" id="volume-slider" min="0" max="100" value="80">
             </div>
         </footer>
@@ -208,7 +208,7 @@
         <div class="modal-content">
             <h2>Add New Song</h2>
             <form id="add-song-form">
-                <input type="text" id="song-title" placeholder="T├¡tulo (ej: Blinding Lights)" required>
+                <input type="text" id="song-title" placeholder="Título (ej: Blinding Lights)" required>
                 <input type="text" id="song-artist" placeholder="Artista (ej: The Weeknd)" required>
                 <input type="url" id="song-url" placeholder="Enlace de YouTube o MP3" required>
                 <input type="url" id="song-cover" placeholder="Miniatura (opcional)">
@@ -277,14 +277,14 @@
 
     <audio id="audio-element"></audio>
     <audio id="silent-audio" loop style="display:none;"></audio>
-    <div id="youtube-player" style="position: fixed; left: -500px; width: 1px; height: 1px; pointer-events: none;"
-        allow="autoplay; encrypted-media">
+    <div id="youtube-player"
+        style="position: fixed; top: 10px; left: 10px; width: 1px; height: 1px; z-index: -100; opacity: 0.01; pointer-events: none;">
     </div>
 
     <!-- Context Menu -->
     <div id="context-menu" class="context-menu">
         <div class="context-menu-item" id="menu-play">Reproducir</div>
-        <div class="context-menu-item" id="menu-add-playlist">A├▒adir a Playlist</div>
+        <div class="context-menu-item" id="menu-add-playlist">Añadir a Playlist</div>
         <div class="context-menu-item" id="menu-favorite">Mark/Unmark Favorite</div>
         <div class="context-menu-item" id="menu-edit">Editar</div>
         <div class="context-menu-item delete" id="menu-delete">Eliminar</div>

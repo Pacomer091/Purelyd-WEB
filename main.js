@@ -1,4 +1,4 @@
-﻿const DEFAULT_SONGS = [
+const DEFAULT_SONGS = [
     {
         id: 1,
         title: "Welcome to Purelyd",
@@ -19,18 +19,7 @@ let searchTerm = '';
 // Global error handler for debugging
 window.onerror = function (msg, url, line) {
     console.error(`[Global Error] ${msg} at ${line}`);
-    debugLog(`ERR: ${msg} (L${line})`);
 };
-
-function debugLog(msg) {
-    const logEl = document.getElementById('debug-console');
-    if (logEl) {
-        const entry = document.createElement('div');
-        entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        logEl.prepend(entry);
-    }
-    console.log(`[DEBUG] ${msg}`);
-}
 
 let currentSongIndex = 0;
 let isPlaying = false;
@@ -138,8 +127,6 @@ window.onYouTubeIframeAPIReady = function () {
     if (window.location.protocol === 'file:') {
         console.warn("WARNING: Running from file:// protocol. YouTube API may be blocked.");
         setStatus("FILE PROTOCOL DETECTED (MAY BLOCK YT)");
-    } else {
-        setStatus("PROTOCOL: " + window.location.protocol);
     }
 
     try {
@@ -148,14 +135,14 @@ window.onYouTubeIframeAPIReady = function () {
             width: '200',
             playerVars: {
                 'autoplay': 1,
-                'controls': 1, // Let's try with controls visible initially for debug
+                'controls': 0,
                 'disablekb': 1,
                 'fs': 0,
                 'iv_load_policy': 3,
                 'modestbranding': 1,
                 'rel': 0,
                 'enablejsapi': 1,
-                'origin': window.location.origin,
+                'origin': window.location.origin || '*',
                 'playsinline': 1
             },
             events: {
@@ -164,30 +151,16 @@ window.onYouTubeIframeAPIReady = function () {
                 'onError': onPlayerError
             }
         });
-        setStatus("PLAYER CREATED, WAITING READY...");
     } catch (e) {
         setStatus("INIT ERROR: " + e.message);
-        debugLog("YT INIT ERROR: " + e.message);
         console.error(e);
     }
 };
-
-// Safety: Trigger manually if script loaded before main.js
-if (window.YT && window.YT.Player) {
-    console.log("YT API already present, triggering manual init");
-    window.onYouTubeIframeAPIReady();
-}
-
 
 function onPlayerReady(event) {
     ytReady = true;
     setStatus("READY");
     console.log("YouTube Player is ready");
-
-    // Refresh MediaSession immediately to fix "Stuck Cover" on first load
-    const song = songs[currentSongIndex];
-    if (song) updateMediaSession(song);
-
     if (pendingSongId) {
         setStatus("PLAYING PENDING...");
         ytPlayer.loadVideoById(pendingSongId);
@@ -196,13 +169,20 @@ function onPlayerReady(event) {
     }
 }
 
+function onPlayerError(e) {
+    const errorMap = {
+        2: "Invalid ID",
+        5: "HTML5 Error",
+        100: "Not Found",
+        101: "Embedded Disabled",
+        150: "Embedded Disabled"
+    };
+    const errorMsg = errorMap[e.data] || `Error Code ${e.data}`;
+    setStatus(`ERROR: ${errorMsg}`);
+    console.error("YouTube Player Error:", e.data);
 
-function onPlayerError(event) {
-    console.error("YouTube Player Error:", event.data);
-    setStatus("YT ERROR: " + event.data);
-    // 101/150 = Video not allowed in embedded players
-    if (event.data === 101 || event.data === 150) {
-        nextSong();
+    if (e.data === 101 || e.data === 150) {
+        alert("Este vídeo tiene desactivada la reproducción en otras webs. Prueba con otro enlace.");
     }
 }
 
@@ -223,11 +203,6 @@ function onPlayerStateChange(event) {
         isPlaying = true;
         userWantsToPlay = true;
         playPauseBtn.textContent = '⏸';
-
-        // Resilience 14.0: Restore Volume strictly after confirmed playback
-        if (ytPlayer.unMute) ytPlayer.unMute();
-        if (ytPlayer.setVolume) ytPlayer.setVolume(volumeSlider.value);
-
         if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = "playing";
             // Authoritative metadata sync only when actually playing
@@ -400,7 +375,7 @@ function renderPlaylists() {
     if (!playlistItemsContainer) return;
     playlistItemsContainer.innerHTML = playlists.map(p => `
         <div class="playlist-item ${currentPlaylistId === p.id ? 'active' : ''}" data-id="${p.id}">
-            <span>­ƒôü</span> ${p.name}
+            <span>📁</span> ${p.name}
         </div>
     `).join('');
 
@@ -457,7 +432,7 @@ function renderSongs() {
         const realIndex = songs.findIndex(s => s.id === song.id);
         return `
         <div class="song-card ${isSelected ? 'selected' : ''}" data-index="${realIndex}">
-            ${!isSelectMode ? `<button class="options-btn" data-index="${realIndex}">Ôï«</button>` : ''}
+            ${!isSelectMode ? `<button class="options-btn" data-index="${realIndex}">⋮</button>` : ''}
             ${isFav ? `
                 <div class="fav-badge">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -586,7 +561,7 @@ function setupEventListeners() {
         // show a specific playlist view or just notify the user.
         // For now, let's just close the overlay and maybe scroll to the top
         // or toggle the sidebar if it still exists (it's hidden in CSS though).
-        // Best approach: If we Añadir a Playlists' view, load it.
+        // Best approach: If we had a 'Playlists' view, load it.
         // Since playlists are in the sidebar, let's just alert for now or
         // implement a quick way to see them.
         mobileLibOverlay.classList.remove('active');
@@ -768,10 +743,10 @@ function setupEventListeners() {
                     lines = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`);
                     console.log(`Extraction successful: ${lines.length} songs found.`);
                 } else {
-                    throw new Error("No se encontraron vídios en la playlist.");
+                    throw new Error("No se encontraron vídeos en la playlist.");
                 }
             } catch (e) {
-                alert("Error al extraer la playlist. Intenta pegar los enlaces de los vídios directamente.");
+                alert("Error al extraer la playlist. Intenta pegar los enlaces de los vídeos directamente.");
                 console.error("Playlist extraction error:", e);
                 startBulkImportBtn.disabled = false;
                 return;
@@ -1101,23 +1076,20 @@ function setupEventListeners() {
             navigator.mediaSession.playbackState = "paused";
             updateMediaSessionPositionState();
         }
-        // ONLY stop keep-alive if the user EXPLICITLY paused
-        if (!userWantsToPlay) {
-            stopKeepAlive();
-        }
+        stopKeepAlive();
     };
 }
 
 // Utility to export all songs for GitHub deployment
 async function exportAllSongs() {
     const allSongs = await SongDB.getAllSongs();
-    console.log("--- Copia esto y pásamelo ---");
+    console.log("--- COPIA ESTO Y PÁSAMELO ---");
     console.log(JSON.stringify(allSongs, null, 2));
     console.log("-------------------------------");
-    alert("Lista de canciones exportada a la consola (F12). Pásamela para incluirla en el despliegue.");
+    alert("Lista de canciones exportada a la consola (F12). Cópiamela para incluirla en el despliegue.");
 }
 
-function playSong(index) {
+async function playSong(index) {
     currentSongIndex = index;
     const song = songs[index];
     if (!song) return;
@@ -1125,9 +1097,6 @@ function playSong(index) {
     // Stop previous players
     audioElement.pause();
     if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
-
-    // Background Resilience: Ensure silence starts for every track
-    startKeepAlive();
 
     // Update UI
     document.querySelector('.player-song-info .song-name').textContent = song.title;
@@ -1145,20 +1114,39 @@ function playSong(index) {
         if (ytReady) {
             setStatus(`PLAYING YT: ${videoId}`);
 
-            // Standard Web Playback: No visiblity hacks needed
+            // Resilience 13.0: Hard State Reset
+            // 1. Scrub previous state to prevent "Sticky Timestamp" bug
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = "none";
+                try {
+                    // Force a zero-state to bridge the gap
+                    navigator.mediaSession.setPositionState({
+                        duration: 120, // Dummy
+                        playbackRate: 0,
+                        position: 0
+                    });
+                } catch (e) { }
+            }
+            lastProgressSyncSec = -1;
+
+            // 2. Warm up web audio stack synchronously
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') audioContext.resume();
+
+            // 3. Warm up MediaSession with REAL metadata immediately
             updateMediaSession(song);
             navigator.mediaSession.playbackState = "playing";
 
+            // 4. Load YouTube (Primary Focus Hunter)
             ytPlayer.loadVideoById(videoId);
-            ytPlayer.playVideo();
             userWantsToPlay = true;
-            isPlaying = true;
+            isPlaying = false; // Defer to onPlayerStateChange
             playPauseBtn.textContent = '⏸';
         } else {
             setStatus("WAITING FOR YT PLAYER...");
             pendingSongId = videoId;
             userWantsToPlay = true;
-            isPlaying = false;
+            isPlaying = true;
             playPauseBtn.textContent = '⏸';
         }
     } else {
@@ -1277,18 +1265,15 @@ function updateMediaSessionPositionState() {
             rate = audioElement.playbackRate || 1;
         }
 
-        if (duration && !isNaN(duration) && duration > 5 && !isNaN(currentTime)) {
+        if (duration && !isNaN(duration) && duration > 0 && !isNaN(currentTime)) {
             try {
-                // Ensure position doesn't exceed duration (Fixed Bugged Minutes)
-                const safePosition = Math.min(Math.max(0, currentTime), duration);
-
                 navigator.mediaSession.setPositionState({
                     duration: duration,
                     playbackRate: isPlaying ? rate : 0,
-                    position: safePosition
+                    position: Math.min(currentTime, duration)
                 });
             } catch (e) {
-                // Ignore silent errors during transition
+                console.warn("Error updating position state:", e);
             }
         }
     }
@@ -1315,35 +1300,19 @@ function seekToTime(time) {
 
 // Background Keep-Alive Logic
 const silentAudio = document.getElementById('silent-audio');
-const SILENT_TRACK_FILE = "silent_keepalive.mp3";
-let keepAliveOsc = null;
+// Using a more robust 1-second silent track to avoid aggressive OS throttling
+const SILENT_TRACK = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
 
 function startKeepAlive() {
-    // 1. Audio Tag Keep-Alive (Physical File)
     if (silentAudio) {
-        if (!silentAudio.src.includes(SILENT_TRACK_FILE)) {
-            silentAudio.src = SILENT_TRACK_FILE;
+        if (silentAudio.src !== SILENT_TRACK) {
+            silentAudio.src = SILENT_TRACK;
             silentAudio.loop = true;
-            silentAudio.volume = 0.001;
+            silentAudio.volume = 0.001; // Not muted, but nearly inaudible
         }
-        silentAudio.play().catch(() => { });
+        // Always try to play, even if already playing (no-op)
+        silentAudio.play().catch(e => console.log("Silent audio start suppressed"));
     }
-
-    // 2. Web Audio Oscillator
-    // This creates a continuous signal that Android's OOM killer respects more.
-    try {
-        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') audioContext.resume();
-
-        if (!keepAliveOsc) {
-            keepAliveOsc = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-            gainNode.gain.value = 0.0001; // Effectively silent but active
-            keepAliveOsc.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            keepAliveOsc.start();
-        }
-    } catch (e) { }
 }
 
 // Global Interaction Unlock: "Warm up" the audio context on first click
@@ -1362,21 +1331,12 @@ function stopKeepAlive() {
     if (silentAudio) {
         silentAudio.pause();
     }
-    if (keepAliveOsc) {
-        try {
-            keepAliveOsc.stop();
-            keepAliveOsc.disconnect();
-        } catch (e) { }
-        keepAliveOsc = null;
-    }
 }
 
 // Ensure silence plays whenever music starts to tell the OS we are active
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-        // Refresh UI & Metadata immediately when returning
-        const song = songs[currentSongIndex];
-        if (song) updateMediaSession(song);
+        // Refresh UI immediately when returning
         updateProgress();
 
         // Resume YouTube if user wanted it to play but system paused it
@@ -1397,11 +1357,9 @@ document.addEventListener('visibilitychange', () => {
 
 function togglePlay() {
     const song = songs[currentSongIndex];
-    if (song.url.includes("youtube.com") || song.url.includes("youtu.be")) {
-        if (!ytReady) return setStatus("YT NOT READY");
-
+    if (song.type === 'youtube') {
         const state = ytPlayer.getPlayerState();
-        if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+        if (state === YT.PlayerState.PLAYING) {
             ytPlayer.pauseVideo();
             userWantsToPlay = false;
         } else {
@@ -1441,7 +1399,8 @@ function updateProgress() {
 
         // Resilience 13.0: Smooth & Stable Progress Sync
         const currentSec = Math.floor(current);
-        if (isPlaying) {
+        if (isPlaying && (song.type === 'youtube' || currentSec % 5 === 0)) {
+            // Jitter Guard: Only sync with OS if we haven't synced this specific second yet
             if (lastProgressSyncSec !== currentSec) {
                 updateMediaSessionPositionState();
                 lastProgressSyncSec = currentSec;
@@ -1529,12 +1488,14 @@ async function saveSongs() {
 
 // Optional: Add a function to clear the library if user wants to reset
 function clearLibrary() {
-    if (confirm("┬┐Seguro que quieres borrar toda tu biblioteca?")) {
+    if (confirm("¿Seguro que quieres borrar toda tu biblioteca?")) {
         songs = [];
         saveSongs();
         renderSongs();
     }
 }
+
+init();
 
 // Selection Mode Helpers
 function toggleSelectMode() {
@@ -1624,5 +1585,3 @@ async function bulkAddToPlaylist() {
         };
     });
 }
-
-init();

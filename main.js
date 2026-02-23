@@ -393,7 +393,8 @@ function renderPlaylists() {
         item.onclick = async () => {
             currentPlaylistId = parseInt(item.dataset.id);
             navHome.classList.remove('active');
-            navLibrary.classList.remove('active');
+            navUploads.classList.remove('active');
+            navFavorites.classList.remove('active');
             await loadUserSongs();
             renderSongs();
             renderPlaylists();

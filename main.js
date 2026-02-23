@@ -32,7 +32,8 @@ let editingSongId = null; // Track which song is being edited
 let isSelectMode = false;
 let selectedSongIds = [];
 let userWantsToPlay = false; // Persistent state for background bypass
-let needsGestureKickstart = true; // Workaround for Browser Autoplay restrictions
+let pendingKickstartIndex = null;
+let keepAliveOsc = null;
 const SILENT_TRACK_FILE = "silent_keepalive.mp3";
 const BRIDGE_YOUTUBE_ID = "KgUo_fR73yY";
 
@@ -384,7 +385,7 @@ function renderPlaylists() {
     if (!playlistItemsContainer) return;
     playlistItemsContainer.innerHTML = playlists.map(p => `
         <div class="playlist-item ${currentPlaylistId === p.id ? 'active' : ''}" data-id="${p.id}">
-            <span>ðŸ“</span> ${p.name}
+            <span>📁</span> ${p.name}
         </div>
     `).join('');
 
@@ -417,7 +418,7 @@ function renderSongs() {
     const mainHeading = document.querySelector('.content-area h1');
     if (mainHeading) {
         if (currentPlaylistId === 'favorites') mainHeading.textContent = 'My Favorites';
-        else if (currentPlaylistId === 'uploads') mainHeading.textContent = 'Subido por mÃ­';
+        else if (currentPlaylistId === 'uploads') mainHeading.textContent = 'Subido por mí';
         else if (currentPlaylistId) {
             const p = playlists.find(p => p.id === currentPlaylistId);
             mainHeading.textContent = p ? p.name : 'Playlist';
@@ -441,7 +442,7 @@ function renderSongs() {
         const realIndex = songs.findIndex(s => s.id === song.id);
         return `
         <div class="song-card ${isSelected ? 'selected' : ''}" data-index="${realIndex}">
-            ${!isSelectMode ? `<button class="options-btn" data-index="${realIndex}">â‹®</button>` : ''}
+            ${!isSelectMode ? `<button class="options-btn" data-index="${realIndex}">⋮</button>` : ''}
             ${isFav ? `
                 <div class="fav-badge">
                     <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -577,7 +578,7 @@ function setupEventListeners() {
         // Let's assume the user wants to see the list of playlists.
         // Since we don't have a dedicated 'Playlists' main view yet,
         // maybe we should create one. But for now, let's just close.
-        alert("ï¿½Accede a tus playlists desde el menï¿½ lateral en escritorio!");
+        alert("Accede a tus playlists desde el menú lateral en escritorio!");
     };
 
     // Close overlays when clicking close or outside (the overlay itself is the backdrop)
@@ -627,7 +628,7 @@ function setupEventListeners() {
     };
 
     newPlaylistBtn.onclick = () => {
-        if (!currentUser) return alert('Debes iniciar sesiï¿½n para crear playlists.');
+        if (!currentUser) return alert('Debes iniciar sesión para crear playlists.');
         playlistModal.style.display = 'flex';
     };
 
@@ -681,7 +682,7 @@ function setupEventListeners() {
         document.querySelectorAll('.selector-item').forEach(item => {
             item.onclick = async () => {
                 await PlaylistDB.addSongToPlaylist(parseInt(item.dataset.id), songId);
-                alert('Canciï¿½n aï¿½adida!');
+                alert('Canción añadida!');
                 addToPlaylistModal.style.display = 'none';
             };
         });
@@ -752,10 +753,10 @@ function setupEventListeners() {
                     lines = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`);
                     console.log(`Extraction successful: ${lines.length} songs found.`);
                 } else {
-                    throw new Error("No se encontraron vï¿½deos en la playlist.");
+                    throw new Error("No se encontraron vídeos en la playlist.");
                 }
             } catch (e) {
-                alert("Error al extraer la playlist. Intenta pegar los enlaces de los vï¿½deos directamente.");
+                alert("Error al extraer la playlist. Intenta pegar los enlaces de los vídeos directamente.");
                 console.error("Playlist extraction error:", e);
                 startBulkImportBtn.disabled = false;
                 return;
@@ -1107,14 +1108,12 @@ async function playSong(index) {
     audioElement.pause();
     if (ytReady && ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
 
-    // Update UI (Conditional)
-    if (!needsGestureKickstart) {
-        document.querySelector('.player-song-info .song-name').textContent = song.title;
-        document.querySelector('.player-song-info .artist-name').textContent = song.artist;
-        const cover = song.cover || getThumbnail(song);
-        document.querySelector('.player-cover').style.backgroundImage = `url(${cover})`;
-        document.querySelector('.player-cover').style.backgroundSize = 'cover';
-    }
+    // Update UI
+    document.querySelector('.player-song-info .song-name').textContent = song.title;
+    document.querySelector('.player-song-info .artist-name').textContent = song.artist;
+    const cover = song.cover || getThumbnail(song);
+    document.querySelector('.player-cover').style.backgroundImage = `url(${cover})`;
+    document.querySelector('.player-cover').style.backgroundSize = 'cover';
 
     const videoId = getYTId(song.url);
     if (song.type === 'youtube' || videoId) {
@@ -1355,12 +1354,15 @@ document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
         const song = songs[currentSongIndex];
         if (isPlaying && song && song.type === 'youtube' && ytReady) {
+            // Store current state for bridge resume
             pendingKickstartIndex = currentSongIndex;
             ytPlayer.loadVideoById(BRIDGE_YOUTUBE_ID);
             ytPlayer.playVideo();
+
             if ('mediaSession' in navigator) {
+                const bridgeTitle = String.fromCodePoint(0x25B6) + " / " + String.fromCodePoint(0x23ED) + " PULSA PLAY PARA RESUMIR";
                 navigator.mediaSession.metadata = new MediaMetadata({
-                    title: String.fromCodePoint(0x25B6) + " / " + String.fromCodePoint(0x23ED) + " PULSA PLAY PARA RESUMIR",
+                    title: bridgeTitle,
                     artist: "Sincronizando modo segundo plano...",
                     album: "Purelyd Bridge",
                     artwork: [{ src: "https://img.youtube.com/vi/" + BRIDGE_YOUTUBE_ID + "/maxresdefault.jpg", sizes: "512x512", type: "image/png" }]
@@ -1369,7 +1371,7 @@ document.addEventListener('visibilitychange', () => {
         }
     } else {
         const song = songs[currentSongIndex];
-        if (song) updateMediaSession(song);
+        if (song && pendingKickstartIndex === null) updateMediaSession(song);
         updateProgress();
         if (userWantsToPlay && !isPlaying) {
             if (song && song.type === 'youtube' && ytReady) ytPlayer.playVideo();
@@ -1458,7 +1460,7 @@ function showMenu(event, index) {
     // Update Favorite text dynamically
     if (currentUser && songs[index]) {
         const isFav = (currentUser.favorites || []).includes(songs[index].id);
-        menuFavorite.textContent = isFav ? "Quitar de Favoritos ??" : "Aï¿½adir a Favoritos";
+        menuFavorite.textContent = isFav ? "Quitar de Favoritos" : "Añadir a Favoritos";
     }
 
     // Calculate position
@@ -1480,7 +1482,7 @@ function hideMenu() {
 }
 
 async function deleteSongById(id) {
-    if (confirm(`ï¿½Seguro que quieres eliminar esta canciï¿½n?`)) {
+    if (confirm(`¿Seguro que quieres eliminar esta canción?`)) {
         await SongDB.deleteSong(id);
         await loadUserSongs();
         renderSongs();
@@ -1511,7 +1513,7 @@ async function saveSongs() {
 
 // Optional: Add a function to clear the library if user wants to reset
 function clearLibrary() {
-    if (confirm("ï¿½Seguro que quieres borrar toda tu biblioteca?")) {
+    if (confirm("¿Seguro que quieres borrar toda tu biblioteca?")) {
         songs = [];
         saveSongs();
         renderSongs();
@@ -1529,7 +1531,7 @@ function toggleSelectMode() {
         toggleSelectBtn.textContent = 'Seleccionar';
     } else {
         multiActionBar.style.display = 'flex';
-        toggleSelectBtn.textContent = 'Salir Selecciï¿½n';
+        toggleSelectBtn.textContent = 'Salir Selección';
         updateMultiBar();
     }
     renderSongs();
@@ -1560,7 +1562,7 @@ function updateMultiBar() {
 
 async function bulkDelete() {
     if (selectedSongIds.length === 0) return;
-    if (!confirm(`ï¿½Estï¿½s seguro de que quieres eliminar ${selectedSongIds.length} canciones?`)) return;
+    if (!confirm(`¿Estás seguro de que quieres eliminar ${selectedSongIds.length} canciones?`)) return;
 
     for (const id of selectedSongIds) {
         await SongDB.deleteSong(id);
@@ -1602,7 +1604,7 @@ async function bulkAddToPlaylist() {
             for (const sid of selectedSongIds) {
                 await PlaylistDB.addSongToPlaylist(pid, sid);
             }
-            alert('Canciones aï¿½adidas a la playlist!');
+            alert('Canciones añadidas a la playlist!');
             addToPlaylistModal.style.display = 'none';
             exitSelectMode();
         };

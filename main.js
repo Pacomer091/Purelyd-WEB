@@ -1,4 +1,4 @@
-const DEFAULT_SONGS = [
+﻿const DEFAULT_SONGS = [
     {
         id: 1,
         title: "Welcome to Purelyd",
@@ -487,57 +487,57 @@ function renderSongs() {
             </div>
             ${playlistCards}
         `;
-        document.getElementById('home-random').onclick = () => {
+
+        // Build recommended section HTML
+        let recoSection = "";
+        const userSongs = currentUser ? songs.filter(s => s.username === currentUser.username) : [];
+        if (userSongs.length > 0) {
+            const shuffled = [...userSongs].sort(() => Math.random() - 0.5).slice(0, 5);
+            recoSection = `
+                <div style="grid-column: 1 / -1; margin-top: 20px;">
+                    <h2 style="color: white; font-size: 1.3rem; margin-bottom: 12px;">&#127911; Recomendados</h2>
+                </div>
+            ` + shuffled.map(song => {
+                const realIndex = songs.findIndex(s => s.id === song.id);
+                return `
+                <div class="song-card reco-card" data-index="${realIndex}" style="cursor:pointer;">
+                    <img src="${song.cover || getThumbnail(song)}" alt="${song.title}">
+                    <div class="title">${song.title}</div>
+                    <div class="artist">${song.artist}</div>
+                </div>`;
+            }).join("");
+        }
+
+        songGrid.innerHTML += recoSection;
+
+        // Attach ALL click handlers AFTER DOM is finalized
+        document.getElementById("home-random").onclick = () => {
             if (songs.length === 0) return;
             const randomIndex = Math.floor(Math.random() * songs.length);
             playSong(randomIndex);
         };
-        // Wire up each playlist card on home
-        document.querySelectorAll('.home-playlist-card').forEach(card => {
+        document.querySelectorAll(".home-playlist-card").forEach(card => {
             card.onclick = async () => {
                 currentPlaylistId = parseInt(card.dataset.playlistId);
-                navHome.classList.remove('active');
-                navUploads.classList.remove('active');
-                navFavorites.classList.remove('active');
+                navHome.classList.remove("active");
+                navUploads.classList.remove("active");
+                navFavorites.classList.remove("active");
                 await loadUserSongs();
                 renderSongs();
                 renderPlaylists();
             };
         });
-        document.getElementById('home-favorites').onclick = () => {
+        document.getElementById("home-favorites").onclick = () => {
             if (navFavorites) navFavorites.click();
         };
-        toggleSelectBtn.style.display = 'none';
+        songGrid.querySelectorAll(".reco-card").forEach(card => {
+            card.onclick = () => {
+                const index = parseInt(card.dataset.index);
+                playSong(index);
+            };
+        });
+        toggleSelectBtn.style.display = "none";
         if (isSelectMode) exitSelectMode();
-
-        // RECOMMENDED: Show 5 random songs uploaded by current user
-        const userSongs = currentUser ? songs.filter(s => s.username === currentUser.username) : [];
-        if (userSongs.length > 0) {
-            const shuffled = [...userSongs].sort(() => Math.random() - 0.5).slice(0, 5);
-            const recoHTML = shuffled.map(song => {
-                const realIndex = songs.findIndex(s => s.id === song.id);
-                return `
-                <div class="song-card" data-index="${realIndex}" style="cursor:pointer;">
-                    <img src="${song.cover || getThumbnail(song)}" alt="${song.title}">
-                    <div class="title">${song.title}</div>
-                    <div class="artist">${song.artist}</div>
-                </div>`;
-            }).join('');
-            songGrid.innerHTML += `
-                <div style="grid-column: 1 / -1; margin-top: 20px;">
-                    <h2 style="color: white; font-size: 1.3rem; margin-bottom: 12px;">🎧 Recomendados</h2>
-                </div>
-                ${recoHTML}
-            `;
-            // Attach click to recommended cards
-            songGrid.querySelectorAll('.song-card[data-index]').forEach(card => {
-                card.onclick = () => {
-                    const index = parseInt(card.dataset.index);
-                    playSong(index);
-                };
-            });
-        }
-
         return;
     }
 

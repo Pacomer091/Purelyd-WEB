@@ -836,6 +836,11 @@ function setupEventListeners() {
         if (!success) {
             console.error("All search providers failed.");
             youtubeResults = [];
+            // Show error in UI
+            const searchErrorMsg = document.createElement('div');
+            searchErrorMsg.style = "grid-column: 1 / -1; margin-top: 20px; text-align: center; color: #ff6b6b; padding: 15px; background: rgba(255,107,107,0.1); border-radius: 8px;";
+            searchErrorMsg.innerHTML = "⚠️ No se han podido cargar más resultados de YouTube. Por favor, revisa tu conexión o intenta con otra búsqueda.";
+            songGrid.appendChild(searchErrorMsg);
         }
 
         isSearchingYT = false;

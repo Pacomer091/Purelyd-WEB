@@ -780,26 +780,47 @@ function setupEventListeners() {
         isSearchingYT = true;
         renderSongs();
 
-        try {
-            // Using Piped API for search (public instance)
-            const res = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}&filter=music_videos`);
-            if (res.ok) {
-                const data = await res.json();
-                youtubeResults = (data.items || []).slice(0, 8).map(item => ({
-                    id: 'yt-' + item.url.split('v=')[1],
-                    title: item.title,
-                    artist: item.uploaderName || "YouTube",
-                    url: 'https://www.youtube.com' + item.url,
-                    cover: item.thumbnail || "",
-                    type: 'youtube'
-                }));
+        const instances = [
+            'https://pipedapi.kavin.rocks',
+            'https://api.piped.video',
+            'https://pipedapi.lunar.icu',
+            'https://piped-api.garudalinux.org'
+        ];
+
+        let success = false;
+        for (const instance of instances) {
+            try {
+                // Use a CORS proxy to avoid browser blocks
+                const targetUrl = `${instance}/search?q=${encodeURIComponent(query)}&filter=music_videos`;
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+                const res = await fetch(proxyUrl);
+                if (res.ok) {
+                    const data = await res.json();
+                    youtubeResults = (data.items || []).slice(0, 8).map(item => ({
+                        id: 'yt-' + item.url.split('v=')[1],
+                        title: item.title,
+                        artist: item.uploaderName || "YouTube",
+                        url: 'https://www.youtube.com' + item.url,
+                        cover: item.thumbnail || "",
+                        type: 'youtube'
+                    }));
+                    success = true;
+                    console.log(`YouTube search success via ${instance}`);
+                    break;
+                }
+            } catch (e) {
+                console.warn(`Search failed on ${instance}, trying next...`, e);
             }
-        } catch (e) {
-            console.warn("YouTube search failed:", e);
-        } finally {
-            isSearchingYT = false;
-            renderSongs();
         }
+
+        if (!success) {
+            console.error("All YouTube search instances failed.");
+            youtubeResults = [];
+        }
+
+        isSearchingYT = false;
+        renderSongs();
     }
 
     // Mobile Bottom Nav Handlers

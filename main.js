@@ -14,7 +14,6 @@ let currentUser = null;
 let users = [];
 let playlists = [];
 let currentPlaylistId = null; // null means 'Home' or 'Library'
-let searchTerm = '';
 let youtubeResults = [];
 let trendingResults = [];
 let isSearchingYT = false;
@@ -23,8 +22,6 @@ let currentView = 'home'; // 'home', 'trending', 'favorites', 'uploads', 'playli
 let searchTimeout = null;
 const SYSTEM_BOT = 'PurelydBot';
 const WORKER_URL = 'https://purelyd.2008qlfta.workers.dev';
-
-// Global error handler for debugging
 window.onerror = function (msg, url, line) {
     console.error(`[Global Error] ${msg} at ${line}`);
 };
@@ -42,7 +39,6 @@ let selectedSongIds = [];
 let userWantsToPlay = false; // Persistent state for background bypass
 let pendingKickstartIndex = null;
 let pendingResumeTime = 0; // Save playback position for background resume
-let bridgeTimeout = null; // Safety timer for auto-resume
 let keepAliveOsc = null;
 const SILENT_TRACK_FILE = "silent_keepalive.mp3";
 const BRIDGE_YOUTUBE_ID = "KgUo_fR73yY";
@@ -254,7 +250,6 @@ function nextSong() {
         const resumeAt = pendingResumeTime;
         pendingKickstartIndex = null;
         pendingResumeTime = 0;
-        if (bridgeTimeout) { clearTimeout(bridgeTimeout); bridgeTimeout = null; }
         playSong(target, resumeAt);
         return;
     }
@@ -455,7 +450,7 @@ function updateAuthUI() {
 function renderSongs() {
     const mainHeading = document.querySelector('.content-area h1');
     if (mainHeading) {
-        if (currentPlaylistId === 'favorites') mainHeading.textContent = 'Mis Favoritos';
+        if (currentPlaylistId === 'favorites') mainHeading.textContent = 'My Favorites';
         else if (currentPlaylistId === 'uploads') mainHeading.textContent = 'Subido por mí';
         else if (currentView === 'trending') mainHeading.textContent = 'Tendencias y Éxitos 📊';
         else if (currentPlaylistId) {
@@ -515,7 +510,6 @@ function renderSongs() {
                 });
 
                 // Since it's a new song potentially, we want to play it immediately
-                // We'll add it to the temporary songs array to use the existing playSong logic
                 songs = [song, ...songs];
                 renderSongs();
                 playSong(0);
@@ -524,201 +518,7 @@ function renderSongs() {
         return;
     }
 
-    // HOME VIEW: Show action cards instead of all songs
-    if (currentView === 'home' && !currentPlaylistId && !searchTerm) {
-        const playlistCards = playlists.map(p => `
-            <div class="song-card home-action-card home-playlist-card" data-playlist-id="${p.id}" style="cursor:pointer;">
-                <div class="song-cover" style="background: linear-gradient(135deg, #6C3483, #A569BD); display:flex; align-items:center; justify-content:center; font-size:2.5rem;">🎵</div>
-                <div class="song-info">
-                    <div class="song-title" style="font-size:1rem; font-weight:700;">${p.name}</div>
-                    <div class="song-artist">${(p.song_ids || []).length} canciones</div>
-                </div>
-            </div>
-        `).join('');
-
-        songGrid.innerHTML = `
-            <div class="song-card home-action-card" id="home-random" style="cursor:pointer;">
-                <div class="song-cover" style="background: linear-gradient(135deg, #1DB954, #1ed760); display:flex; align-items:center; justify-content:center; font-size:3rem;">🎲</div>
-                <div class="song-info">
-                    <div class="song-title" style="font-size:1rem; font-weight:700;">Canción Aleatoria</div>
-                    <div class="song-artist">Sorpréndete</div>
-                </div>
-            </div>
-
-            <div class="song-card home-action-card" id="home-all" style="cursor:pointer;">
-                <div class="song-cover" style="background: linear-gradient(135deg, #2196F3, #64B5F6); display:flex; align-items:center; justify-content:center; font-size:3rem;">&#128218;</div>
-                <div class="song-info">
-                    <div class="song-title" style="font-size:1rem; font-weight:700;">Ver Todas</div>
-                    <div class="song-artist">Todas las canciones</div>
-                </div>
-            </div>
-            <div class="song-card home-action-card" id="home-favorites" style="cursor:pointer;">
-                <div class="song-cover" style="background: linear-gradient(135deg, #e91e63, #f06292); display:flex; align-items:center; justify-content:center; font-size:3rem;">❤️</div>
-                <div class="song-info">
-                    <div class="song-title" style="font-size:1rem; font-weight:700;">Favoritos</div>
-                    <div class="song-artist">Tus canciones favoritas</div>
-                </div>
-            </div>
-            ${playlistCards}
-        `;
-
-        // Build recommended section HTML
-        let recoSection = "";
-        let recommendedSongs = [];
-        const userSongs = currentUser ? songs.filter(s => s.username === currentUser.username) : [];
-        if (userSongs.length > 0) {
-            const shuffled = [...userSongs].sort(() => Math.random() - 0.5).slice(0, 5);
-            recommendedSongs = shuffled;
-            recoSection = `
-                <div style="grid-column: 1 / -1; margin-top: 20px;">
-                    <h2 style="color: white; font-size: 1.3rem; margin-bottom: 12px;">&#127911; Recomendados</h2>
-                </div>
-            ` + shuffled.map((song, idx) => {
-                const realIndex = songs.findIndex(s => s.id === song.id);
-                return `
-                <div class="song-card reco-card" data-reco-index="${idx}" style="cursor:pointer;">
-                    <img src="${song.cover || getThumbnail(song)}" alt="${song.title}">
-                    <div class="title">${song.title}</div>
-                    <div class="artist">${song.artist}</div>
-                </div>`;
-            }).join("");
-        }
-
-        songGrid.innerHTML += recoSection;
-
-        // YouTube Results Section (Home View)
-        if (isSearchingYT) {
-            songGrid.innerHTML += `
-                <div style="grid-column: 1 / -1; margin-top: 20px; text-align: center; color: #888;">
-                    <div class="spinner" style="width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #ff0033; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 10px;"></div>
-                    Buscando en YouTube...
-                </div>
-            `;
-        } else if (searchTerm && searchTerm.length >= 3 && youtubeResults.length > 0) {
-            songGrid.innerHTML += `
-                <div style="grid-column: 1 / -1; margin-top: 20px;">
-                    <h2 style="color: white; font-size: 1.3rem; margin-bottom: 12px; display: flex; align-items: center;">
-                        <span style="font-size: 1.5rem; margin-right: 10px;">🌎</span> Descubrimientos de YouTube
-                    </h2>
-                    <p style="color: #888; font-size: 0.9rem; margin-bottom: 15px;">Toca para reproducir (se guardará automáticamente).</p>
-                </div>
-            ` + youtubeResults.map((song, idx) => `
-                <div class="song-card yt-search-card" data-yt-index="${idx}" style="cursor:pointer; border: 1px solid rgba(255,0,51,0.2);">
-                    <img src="${song.cover}" alt="${song.title}">
-                    <div class="title">${song.title}</div>
-                    <div class="artist">${song.artist}</div>
-                </div>
-            `).join("");
-        }
-
-        // Attach YT search click handlers
-        songGrid.querySelectorAll(".yt-search-card").forEach(card => {
-            card.onclick = async () => {
-                const idx = parseInt(card.dataset.ytIndex);
-                const song = youtubeResults[idx];
-                if (!song) return;
-
-                // Auto-Index in background
-                SongDB.getSongByUrl(song.url).then(existing => {
-                    if (!existing) {
-                        console.log("Auto-indexing discovery:", song.title);
-                        SongDB.addSong(song, SYSTEM_BOT);
-                    }
-                }).catch(e => console.warn("Auto-index check failed", e));
-
-                // Play it
-                const newSong = { ...song, type: 'youtube' };
-                songs = [newSong, ...songs];
-                renderSongs();
-                playSong(0);
-            };
-        });
-
-        // Attach ALL click handlers AFTER DOM is finalized
-        document.getElementById("home-random").onclick = () => {
-            if (songs.length === 0) return;
-            const randomIndex = Math.floor(Math.random() * songs.length);
-            playSong(randomIndex);
-        };
-        document.getElementById("home-all").onclick = async () => {
-            currentPlaylistId = null;
-            searchTerm = ' ';
-            await loadUserSongs();
-            renderSongs();
-            searchTerm = '';
-        };
-        document.querySelectorAll(".home-playlist-card").forEach(card => {
-            card.onclick = async () => {
-                currentPlaylistId = parseInt(card.dataset.playlistId);
-                navHome.classList.remove("active");
-                navUploads.classList.remove("active");
-                navFavorites.classList.remove("active");
-                await loadUserSongs();
-                renderSongs();
-                renderPlaylists();
-            };
-        });
-        document.getElementById("home-favorites").onclick = () => {
-            if (navFavorites) navFavorites.click();
-        };
-        songGrid.querySelectorAll(".reco-card").forEach(card => {
-            card.onclick = async () => {
-                const recoIdx = parseInt(card.dataset.recoIndex);
-                const clickedSong = recommendedSongs[recoIdx];
-                if (!clickedSong) return;
-
-                // 1. Load all user uploads directly without changing currentPlaylistId
-                const allUserSongs = await SongDB.getSongsByUser(currentUser.username);
-
-                // 2. Filter out the recommended songs from the rest of uploads
-                const recoIds = recommendedSongs.map(s => s.id);
-                const restOfSongs = allUserSongs.filter(s => !recoIds.includes(s.id));
-
-                // 3. Build the specific queue: [clicked, ...rest_of_recommended, ...rest_of_uploads]
-                const remainingRecommended = recommendedSongs.slice(recoIdx + 1);
-                const precedingRecommended = recommendedSongs.slice(0, recoIdx);
-
-                // Re-assemble: clicked + those after it + those before it + rest
-                // Wait, user said "se reproduzcan las siguientes recomendadas y despues se pase a las subidas"
-                // If I click the 2nd, I play 2nd, 3rd, 4th, 5th, then the rest.
-                // What about 1st? Maybe the rest should include 1st? 
-                // Let's stick to the literal "following ones" then the rest.
-
-                songs = [clickedSong, ...remainingRecommended, ...precedingRecommended, ...restOfSongs];
-
-                // 4. Play the clicked song without switching view
-                playSong(0);
-            };
-        });
-        toggleSelectBtn.style.display = "none";
-        if (isSelectMode) exitSelectMode();
-        return;
-    }
-
-    // SEARCH / PLAYLIST VIEW: Show songs
     const favIds = currentUser ? (currentUser.favorites || []) : [];
-
-    // If searching and we have YT results, show them below the filtered songs
-    let ytSectionHeader = "";
-    let ytSectionContent = "";
-    if (searchTerm && searchTerm.length >= 3) {
-        if (isSearchingYT) {
-            ytSectionHeader = `<div style="grid-column: 1 / -1; margin-top: 20px; text-align: center; color: #888;">Buscando más en YouTube...</div>`;
-        } else if (youtubeResults.length > 0) {
-            ytSectionHeader = `
-                <div style="grid-column: 1 / -1; margin-top: 20px; border-top: 1px solid #333; padding-top: 20px;">
-                    <h2 style="color: white; font-size: 1.1rem; margin-bottom: 12px; opacity: 0.8;">Más resultados de YouTube</h2>
-                </div>
-            `;
-            ytSectionContent = youtubeResults.map((song, idx) => `
-                <div class="song-card yt-search-card" data-yt-index="${idx}" style="cursor:pointer; opacity: 0.8;">
-                    <img src="${song.cover}" alt="${song.title}">
-                    <div class="title">${song.title}</div>
-                    <div class="artist">${song.artist}</div>
-                </div>
-            `).join("");
-        }
-    }
 
     const filteredSongs = songs.filter(song => {
         const query = searchTerm.toLowerCase();
@@ -745,25 +545,7 @@ function renderSongs() {
             <div class="title">${song.title}</div>
             <div class="artist">${song.artist}</div>
         </div>
-    `}).join('') + ytSectionHeader + ytSectionContent;
-
-    // Attach YT search click handlers for search view
-    songGrid.querySelectorAll(".yt-search-card").forEach(card => {
-        card.onclick = async () => {
-            const idx = parseInt(card.dataset.ytIndex);
-            const song = youtubeResults[idx];
-            if (!song) return;
-
-            // Auto-Index
-            SongDB.getSongByUrl(song.url).then(existing => {
-                if (!existing) SongDB.addSong(song, SYSTEM_BOT);
-            }).catch(e => console.warn("Auto-index failed", e));
-
-            songs = [song, ...songs];
-            renderSongs();
-            playSong(0);
-        };
-    });
+    `}).join('');
 
     // Update Select Button visibility
     if (currentPlaylistId === 'uploads' && currentUser) {
@@ -827,87 +609,7 @@ function setupEventListeners() {
     searchInput.oninput = (e) => {
         searchTerm = e.target.value;
         renderSongs();
-
-        // YouTube Smart Search (Debounced)
-        if (searchTimeout) clearTimeout(searchTimeout);
-        if (searchTerm.trim().length >= 3) {
-            searchTimeout = setTimeout(() => searchYouTube(searchTerm), 800);
-        } else {
-            youtubeResults = [];
-            renderSongs();
-        }
     };
-
-    async function searchYouTube(query) {
-        if (!query) return;
-        isSearchingYT = true;
-        renderSongs();
-
-        // 1. Try Worker Search first (if URL is set)
-        if (WORKER_URL) {
-            try {
-                const res = await fetch(`${WORKER_URL}/search?q=${encodeURIComponent(query)}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'ok') {
-                        youtubeResults = data.results;
-                        isSearchingYT = false;
-                        renderSongs();
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.warn("Worker search failed, falling back to public APIs");
-            }
-        }
-
-        // 2. Fallback to public Invidious instances
-        const instances = [
-            'https://invidious.lunar.icu',
-            'https://yewtu.be',
-            'https://inv.vern.cc',
-            'https://invidious.projectsegfau.lt'
-        ];
-
-        let success = false;
-        for (const instance of instances) {
-            try {
-                const targetUrl = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-
-                const res = await fetch(proxyUrl);
-                if (res.ok) {
-                    const data = await res.json();
-                    youtubeResults = (data || []).slice(0, 8).map(item => ({
-                        id: 'yt-' + item.videoId,
-                        title: item.title,
-                        artist: item.author || "YouTube",
-                        url: `https://www.youtube.com/watch?v=${item.videoId}`,
-                        cover: item.videoThumbnails ? item.videoThumbnails.find(t => t.quality === 'medium')?.url : `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg`,
-                        type: 'youtube'
-                    }));
-                    success = true;
-                    console.log(`YouTube search success via ${instance}`);
-                    break;
-                }
-            } catch (e) {
-                console.warn(`Search failed on ${instance}`, e);
-            }
-        }
-
-        if (!success) {
-            console.error("All search providers failed.");
-            youtubeResults = [];
-            // Show error in UI
-            const searchErrorMsg = document.createElement('div');
-            searchErrorMsg.style = "grid-column: 1 / -1; margin-top: 20px; text-align: center; color: #ff6b6b; padding: 15px; background: rgba(255,107,107,0.1); border-radius: 8px;";
-            searchErrorMsg.innerHTML = "⚠️ No se han podido cargar más resultados de YouTube. Por favor, revisa tu conexión o intenta con otra búsqueda.";
-            songGrid.appendChild(searchErrorMsg);
-        }
-
-        isSearchingYT = false;
-        renderSongs();
-    }
 
     // Mobile Bottom Nav Handlers
     mobileNavHome.onclick = () => {
@@ -1002,49 +704,21 @@ function setupEventListeners() {
         mobileLibOverlay.classList.remove('active');
     };
 
-    mobNavPlaylists.onclick = async () => {
+    mobNavPlaylists.onclick = () => {
+        // Scroll to the sidebar's playlist section if possible, 
+        // or just open the sidebar if we want to show playlists.
+        // On mobile, the sidebar is hidden, so maybe we should just
+        // show a specific playlist view or just notify the user.
+        // For now, let's just close the overlay and maybe scroll to the top
+        // or toggle the sidebar if it still exists (it's hidden in CSS though).
+        // Best approach: If we had a 'Playlists' view, load it.
+        // Since playlists are in the sidebar, let's just alert for now or
+        // implement a quick way to see them.
         mobileLibOverlay.classList.remove('active');
-        if (!currentUser) return showAuthModal();
-        await loadPlaylists();
-        if (playlists.length === 0) {
-            alert('No tienes playlists. ¡Crea una primero!');
-            return;
-        }
-        // Show playlists in the main content area
-        const mainHeading = document.querySelector('.content-area h1');
-        if (mainHeading) mainHeading.textContent = 'Mis Playlists';
-        songGrid.innerHTML = playlists.map(p => `
-            <div class="song-card" data-playlist-id="${p.id}" style="cursor:pointer;">
-                <div class="song-cover" style="background: linear-gradient(135deg, #ff0033, #ff6b6b); display:flex; align-items:center; justify-content:center; font-size:2.5rem;">📁</div>
-                <div class="song-info">
-                    <div class="song-title">${p.name}</div>
-                    <div class="song-artist">${(p.songIds || []).length} canciones</div>
-                </div>
-            </div>
-        `).join('') + `
-            <div class="song-card" id="mobile-back-home" style="cursor:pointer;">
-                <div class="song-cover" style="background: rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; font-size:2.5rem;">←</div>
-                <div class="song-info">
-                    <div class="song-title">Volver al inicio</div>
-                    <div class="song-artist">Ver todas las canciones</div>
-                </div>
-            </div>
-        `;
-        // Attach click handlers for each playlist card
-        document.querySelectorAll('[data-playlist-id]').forEach(card => {
-            card.onclick = async () => {
-                currentPlaylistId = parseInt(card.dataset.playlistId);
-                navHome.classList.remove('active');
-                navUploads.classList.remove('active');
-                navFavorites.classList.remove('active');
-                await loadUserSongs();
-                renderSongs();
-                renderPlaylists();
-            };
-        });
-        // Back to home handler
-        const backBtn = document.getElementById('mobile-back-home');
-        if (backBtn) backBtn.onclick = () => navHome.click();
+        // Let's assume the user wants to see the list of playlists.
+        // Since we don't have a dedicated 'Playlists' main view yet,
+        // maybe we should create one. But for now, let's just close.
+        alert("Accede a tus playlists desde el menú lateral en escritorio!");
     };
 
     // Close overlays when clicking close or outside (the overlay itself is the backdrop)
@@ -1109,21 +783,15 @@ function setupEventListeners() {
     playlistForm.onsubmit = async (e) => {
         e.preventDefault();
         const name = document.getElementById('playlist-name').value;
-        try {
-            await PlaylistDB.addPlaylist({
-                name,
-                username: currentUser.username,
-                song_ids: []
-            });
-            playlistModal.style.display = 'none';
-            playlistForm.reset();
-            await loadPlaylists();
-            renderPlaylists();
-            alert('Playlist "' + name + '" creada!');
-        } catch (err) {
-            console.error('Error creating playlist:', err);
-            alert('Error al crear la playlist: ' + err.message);
-        }
+        await PlaylistDB.addPlaylist({
+            name,
+            username: currentUser.username,
+            songIds: []
+        });
+        playlistModal.style.display = 'none';
+        playlistForm.reset();
+        await loadPlaylists();
+        renderPlaylists();
     };
 
     menuAddPlaylist.onclick = () => {
@@ -1211,56 +879,61 @@ function setupEventListeners() {
         const playlistMatch = lines[0].match(/[?&]list=([^#&?]+)/);
         if (playlistMatch && lines.length === 1) {
             const playlistId = playlistMatch[1];
-            importProgressText.textContent = `Extrayendo canciones de la playlist vía Worker...`;
+            importProgressText.textContent = `Extrayendo canciones de la playlist...`;
 
             try {
-                const response = await fetch(`${WORKER_URL}/playlist?list=${playlistId}`);
-                if (!response.ok) throw new Error("Worker responded with error");
-
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(lines[0])}`;
+                const response = await fetch(proxyUrl);
                 const data = await response.json();
-                if (data.status === 'ok' && data.results.length > 0) {
-                    importProgressText.textContent = `Guardando ${data.results.length} canciones...`;
-                    await SongDB.addSongs(data.results, currentUser.username);
-                    importedCount = data.results.length;
-                    lines = []; // Clear lines so the loop below doesn't run
+                const html = data.contents;
+
+                // Extract video IDs and Titles using regex from ytInitialData
+                const videoIds = [];
+                const idRegex = /"videoId":"([^"]{11})"/g;
+                let match;
+                while ((match = idRegex.exec(html)) !== null) {
+                    if (!videoIds.includes(match[1])) videoIds.push(match[1]);
+                }
+
+                if (videoIds.length > 0) {
+                    lines = videoIds.map(id => `https://www.youtube.com/watch?v=${id}`);
+                    console.log(`Extraction successful: ${lines.length} songs found.`);
                 } else {
-                    throw new Error(data.message || "No se encontraron vídeos.");
+                    throw new Error("No se encontraron vídeos en la playlist.");
                 }
             } catch (e) {
-                console.error("Playlist import error:", e);
-                alert("Error al importar la playlist. Intentando método alternativo...");
-                // Fallback: If worker fails, we continue with the original list of URLs if possible
+                alert("Error al extraer la playlist. Intenta pegar los enlaces de los vídeos directamente.");
+                console.error("Playlist extraction error:", e);
+                startBulkImportBtn.disabled = false;
+                return;
             }
         }
 
-        // Process leftovers or direct URLs
-        if (lines.length > 0) {
-            for (let i = 0; i < lines.length; i++) {
-                const url = lines[i];
-                const ytId = getYTId(url);
+        for (let i = 0; i < lines.length; i++) {
+            const url = lines[i];
+            const ytId = getYTId(url);
 
-                importProgressText.textContent = `Procesando ${i + 1} de ${lines.length}...`;
-                importProgressBar.style.width = `${((i + 1) / lines.length) * 100}%`;
+            importProgressText.textContent = `Procesando ${i + 1} de ${lines.length}...`;
+            importProgressBar.style.width = `${((i + 1) / lines.length) * 100}%`;
 
-                if (ytId) {
-                    try {
-                        const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`);
-                        if (response.ok) {
-                            const data = await response.json();
-                            const newSong = {
-                                id: Date.now() + Math.random(),
-                                title: data.title || "Unknown Title",
-                                artist: data.author_name || "Unknown Artist",
-                                url: url,
-                                cover: data.thumbnail_url || "",
-                                type: 'youtube'
-                            };
-                            await SongDB.addSong(newSong, currentUser.username);
-                            importedCount++;
-                        }
-                    } catch (e) {
-                        console.error("Error importing:", url, e);
+            if (ytId) {
+                try {
+                    const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        const newSong = {
+                            id: Date.now() + Math.random(),
+                            title: data.title || "Unknown Title",
+                            artist: data.author_name || "Unknown Artist",
+                            url: url,
+                            cover: data.thumbnail_url || "",
+                            type: 'youtube'
+                        };
+                        await SongDB.addSong(newSong, currentUser.username);
+                        importedCount++;
                     }
+                } catch (e) {
+                    console.error("Error importing:", url, e);
                 }
             }
         }
@@ -1839,8 +1512,8 @@ document.addEventListener('visibilitychange', () => {
             // 1. Stop the original video first to prevent audio overlap
             ytPlayer.stopVideo();
             pendingKickstartIndex = currentSongIndex;
-            // 2. Load bridge starting at second 29 (of 30s) for a ~1s bridge
-            ytPlayer.loadVideoById({ videoId: BRIDGE_YOUTUBE_ID, startSeconds: 29 });
+            // 2. Load bridge starting at second 27 (of 30s) for a ~3s bridge
+            ytPlayer.loadVideoById({ videoId: BRIDGE_YOUTUBE_ID, startSeconds: 27 });
             ytPlayer.playVideo();
 
             if ('mediaSession' in navigator) {
@@ -1852,15 +1525,6 @@ document.addEventListener('visibilitychange', () => {
                     artwork: [{ src: "https://img.youtube.com/vi/" + BRIDGE_YOUTUBE_ID + "/maxresdefault.jpg", sizes: "512x512", type: "image/png" }]
                 });
             }
-
-            // Safety timeout: auto-resume after 4s in case ENDED event doesn't fire
-            if (bridgeTimeout) clearTimeout(bridgeTimeout);
-            bridgeTimeout = setTimeout(() => {
-                if (pendingKickstartIndex !== null) {
-                    console.log("Bridge safety timeout: forcing resume");
-                    nextSong();
-                }
-            }, 1000);
         }
     } else {
         const song = songs[currentSongIndex];

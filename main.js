@@ -552,13 +552,12 @@ function renderSongs() {
                 const clickedSong = recommendedSongs[recoIdx];
                 if (!clickedSong) return;
 
-                // 1. Load all user uploads to build the background queue
-                currentPlaylistId = "uploads";
-                await loadUserSongs(); // Updates global 'songs' with all user songs
+                // 1. Load all user uploads directly without changing currentPlaylistId
+                const allUserSongs = await SongDB.getSongsByUser(currentUser.username);
 
                 // 2. Filter out the recommended songs from the rest of uploads
                 const recoIds = recommendedSongs.map(s => s.id);
-                const restOfSongs = songs.filter(s => !recoIds.includes(s.id));
+                const restOfSongs = allUserSongs.filter(s => !recoIds.includes(s.id));
 
                 // 3. Build the specific queue: [clicked, ...rest_of_recommended, ...rest_of_uploads]
                 const remainingRecommended = recommendedSongs.slice(recoIdx + 1);
@@ -572,8 +571,7 @@ function renderSongs() {
 
                 songs = [clickedSong, ...remainingRecommended, ...precedingRecommended, ...restOfSongs];
 
-                // 4. Trigger UI update to Uploads view and play first song
-                renderSongs();
+                // 4. Play the clicked song without switching view
                 playSong(0);
             };
         });
